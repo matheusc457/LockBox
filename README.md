@@ -4,19 +4,19 @@
 
 SafeLocked is a secure and minimal TOTP (2FA) CLI manager for Linux, written in Rust.
 
-The project follows a local-first security model. Authentication secrets are encrypted at rest and are only accessible during temporary in-memory sessions. SafeLocked works fully offline and avoids cloud dependency by design.
+The project follows a local-first security model. Authentication secrets are encrypted at rest and are only accessible during active agent sessions. SafeLocked works fully offline and avoids cloud dependency by design.
 
 ---
 
 ## Features
 
-- AES-256-GCM encryption for vault protection  
-- Argon2id key derivation  
-- Time-limited unlock sessions  
-- Default unlock session: **60 seconds**  
-- Session keys stored only in RAM (`/dev/shm`)  
-- No decrypted secrets written to disk  
-- Fully offline operation  
+- AES-256-GCM encryption for vault protection
+- Argon2id key derivation
+- Background agent keeps the master key in memory only
+- Agent session persists until explicit `lock` command
+- Socket stored in RAM-backed directory (`/run/user/<uid>`, `/tmp`, or `$HOME`)
+- No decrypted secrets written to disk
+- Fully offline operation
 
 ---
 
@@ -24,7 +24,7 @@ The project follows a local-first security model. Authentication secrets are enc
 
 ### Requirements
 
-- Linux
+- Linux or Termux (Android)
 - Rust and Cargo
 
 ### Build
@@ -58,16 +58,16 @@ Initialize vault:
 safelocked init
 ```
 
-Unlock vault (default session: **60 seconds**):
+Unlock vault (starts the background agent):
 
 ```bash
 safelocked unlock
 ```
 
-Unlock with custom timeout:
+Check if vault is unlocked:
 
 ```bash
-safelocked unlock --timeout 300
+safelocked status
 ```
 
 Add a service:
@@ -84,7 +84,19 @@ List active codes:
 safelocked list
 ```
 
-Lock vault immediately:
+Filter by name:
+
+```bash
+safelocked list Google
+```
+
+Watch a code in real time:
+
+```bash
+safelocked watch Google
+```
+
+Lock vault:
 
 ```bash
 safelocked lock
@@ -96,7 +108,7 @@ Remove a service:
 safelocked remove Google
 ```
 
-Delete vault and sessions:
+Delete vault and stop agent:
 
 ```bash
 safelocked purge
@@ -108,10 +120,11 @@ safelocked purge
 
 SafeLocked follows RFC 6238 for TOTP generation.
 
-Vault data remains encrypted at rest and secrets are decrypted only during active sessions. Session keys exist exclusively in volatile memory and are automatically destroyed after expiration, system shutdown, or manual lock.
+Vault data remains encrypted at rest. When unlocked, the master key is held exclusively in the memory of a background agent process and is never written to disk. The agent communicates via a Unix socket with strict owner-only permissions (`600`). Locking the vault terminates the agent and the key is gone from memory immediately.
 
 ---
 
 ## License
 
 This project is licensed under the MIT License.
+
