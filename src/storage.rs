@@ -10,12 +10,12 @@ pub struct TwoFactorItem {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Vault {
-    pub salt: [u8; 16],
+    pub salt: [u8; 32],
     pub items: Vec<TwoFactorItem>,
 }
 
 impl Vault {
-    pub fn new(salt: [u8; 16]) -> Self {
+    pub fn new(salt: [u8; 32]) -> Self {
         Self {
             salt,
             items: Vec::new(),
@@ -29,8 +29,11 @@ impl Vault {
     }
 
     pub fn save_to_disk(&self, encrypted_data: &[u8]) -> std::io::Result<()> {
+        use std::os::unix::fs::PermissionsExt;
         let path = Self::get_path();
-        fs::write(path, encrypted_data)
+        fs::write(&path, encrypted_data)?;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600))?;
+        Ok(())
     }
 
     pub fn load_from_disk() -> std::io::Result<Vec<u8>> {

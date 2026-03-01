@@ -55,7 +55,7 @@ fn main() {
                 println!("{}", "Error: Passwords do not match.".red().bold());
                 return;
             }
-            let mut salt = [0u8; 16];
+            let mut salt = [0u8; 32];
             rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut salt);
             let vault = Vault::new(salt);
             let key = crypto::derive_key(&password, &salt);
@@ -84,9 +84,9 @@ fn main() {
                 }
             };
             let password = rpassword::prompt_password("Master Password: ").unwrap();
-            let salt: [u8; 16] = data[0..16].try_into().unwrap();
+            let salt: [u8; 32] = data[0..32].try_into().unwrap();
             let key = crypto::derive_key(&password, &salt);
-            if crypto::decrypt(&data[16..], &key).is_some() {
+            if crypto::decrypt(&data[32..], &key).is_some() {
                 agent::start_agent(key);
                 println!("{}", "Vault unlocked.".green().bold());
             } else {
