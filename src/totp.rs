@@ -35,8 +35,8 @@ mod tests {
 
     #[test]
     fn test_valid_secret_generates_code() {
-        // JBSWY3DPEHPK3PXP is a well-known test secret (RFC compliant)
-        let code = generate_code("JBSWY3DPEHPK3PXP");
+        // 20-byte base32 encoded secret (meets minimum length requirement)
+        let code = generate_code("IFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKB");
         assert!(code.is_some());
         let code = code.unwrap();
         assert_eq!(code.len(), 6);
