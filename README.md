@@ -73,8 +73,10 @@ safelocked unlock --timeout 300
 Add a service:
 
 ```bash
-safelocked add Google JBSWY3DPEHPK3PXP
+safelocked add Google
 ```
+
+> The TOTP secret is entered interactively and never exposed in the shell history.
 
 List active codes:
 
