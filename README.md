@@ -1,48 +1,111 @@
-# SafeLocked 🔐
+# SafeLocked
 
-A secure, minimal, and user-friendly 2FA/TOTP CLI manager for Linux, built with Rust.
+SafeLocked is a secure and minimal TOTP (2FA) CLI manager for Linux, written in Rust.
+
+The project focuses on local-first security. Authentication secrets are stored encrypted on disk and are only accessible during temporary in-memory sessions. SafeLocked operates fully offline and avoids cloud dependency by design.
+
+---
 
 ## Features
-- **AES-256-GCM Encryption**: Industrial-grade protection for your seeds.
-- **Argon2id Key Derivation**: High resistance against brute-force attacks.
-- **Session Management**: Unlock your vault once and access codes for a custom duration (stored in RAM only).
-- **Modern CLI**: Colored output, formatted tables, and intuitive commands.
-- **Zero Disk Traces**: Session keys are stored in `/dev/shm` and auto-expire.
+
+- AES-256-GCM encryption for vault protection  
+- Argon2id key derivation  
+- Time-limited unlock sessions  
+- Session keys stored only in RAM (`/dev/shm`)  
+- No decrypted secrets written to disk  
+- Fully offline operation  
+
+---
 
 ## Installation
 
-### 1. Build from source
-Requires [Rust](https://www.rust-lang.org) and Cargo.
+### Requirements
+- Linux
+- Rust and Cargo
 
-git clone https://github.com/matheusc457/SafeLocked  
-cd SafeLocked  
+### Build
+
+```bash
+git clone https://github.com/matheusc457/SafeLocked
+cd SafeLocked
 cargo build --release
+```
 
-### 2. Install to PATH
-To run `safelocked` from anywhere in your terminal, move the binary to your local bin:
+### Install
 
-sudo cp target/release/safelocked /usr/local/bin/  
+```bash
+sudo cp target/release/safelocked /usr/local/bin/
 sudo chmod +x /usr/local/bin/safelocked
+```
 
-## Usage Guide
+Verify installation:
 
-1. **Initialize**: Create your master vault.
-   safelocked init
+```bash
+safelocked --help
+```
 
-2. **Unlock**: Access your vault for a specific time (e.g., 5 minutes).
-   safelocked unlock --timeout 300
+---
 
-3. **Add Service**: Save a new 2FA seed.  
-   safelocked add Google JBSWY3DPEHPK3PXP
+## Usage
 
-4. **List/Get**: View your active codes.  
-   safelocked list            # Show all codes  
-   safelocked list google     # Filter by name
+Initialize vault:
 
-5. **Management**:  
-   safelocked remove Google # Delete a specific service  
-   safelocked lock            # Immediate lock  
-   safelocked purge           # Delete everything (vault + sessions)
+```bash
+safelocked init
+```
+
+Unlock vault (default session: **60 seconds**):
+
+```bash
+safelocked unlock
+```
+
+Unlock for a custom duration:
+
+```bash
+safelocked unlock --timeout 300
+```
+
+Add a service:
+
+```bash
+safelocked add Google JBSWY3DPEHPK3PXP
+```
+
+List active codes:
+
+```bash
+safelocked list
+```
+
+Lock immediately:
+
+```bash
+safelocked lock
+```
+
+Remove a service:
+
+```bash
+safelocked remove Google
+```
+
+Delete vault and sessions:
+
+```bash
+safelocked purge
+```
+
+---
 
 ## Security
-This tool follows RFC 6238 (TOTP). It uses a session-based approach where the derived key is temporarily stored in a RAM-backed filesystem (`/dev/shm`), ensuring that even if your PC is powered off, the session key vanishes.
+
+SafeLocked follows RFC 6238 for TOTP generation.
+
+Vault data remains encrypted at rest and secrets are decrypted only during active sessions. Session keys exist exclusively in volatile memory and are automatically destroyed after expiration, system shutdown, or manual lock.
+
+---
+
+## License
+
+This project is licensed under the MIT License.
