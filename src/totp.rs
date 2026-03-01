@@ -2,7 +2,15 @@ use std::time::SystemTime;
 use totp_rs::{Algorithm, Secret, TOTP};
 
 pub fn generate_code(secret_str: &str) -> Option<String> {
-    let secret_bytes = Secret::Encoded(secret_str.to_string()).to_bytes().ok()?;
+    let padded = {
+        let rem = secret_str.len() % 8;
+        if rem == 0 {
+            secret_str.to_string()
+        } else {
+            format!("{}{}", secret_str, "=".repeat(8 - rem))
+        }
+    };
+    let secret_bytes = Secret::Encoded(padded).to_bytes().ok()?;
 
     if secret_bytes.len() < 16 {
         return None;
@@ -35,8 +43,8 @@ mod tests {
 
     #[test]
     fn test_valid_secret_generates_code() {
-        // 20-byte base32 encoded secret (meets minimum length requirement)
-        let code = generate_code("IFAUCQKBIFAUCQKBIFAUCQKBIFAUCQKB");
+        // ONQWMZLMN5RWWZLEL52GK43UEEYTEMZU is base32 of b"safelocked_test!1234" (20 bytes)
+        let code = generate_code("ONQWMZLMN5RWWZLEL52GK43UEEYTEMZU");
         assert!(code.is_some());
         let code = code.unwrap();
         assert_eq!(code.len(), 6);
