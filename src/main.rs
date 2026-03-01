@@ -10,12 +10,13 @@ use std::io::{self, Write};
 use std::fs;
 use std::path::PathBuf;
 use colored::*;
+use std::{thread, time::Duration};
 
 #[derive(Parser)]
 #[command(name = "safelocked")]
 #[command(author = "Matheus <://github.com>")]
-#[command(version = "1.0")]
-#[command(about = "Secure 2FA/TOTP manager for Linux terminal", long_about = "SafeLocked protects your seeds with AES-256-GCM encryption. \nYou must unlock the vault to access codes for a chosen duration.")]
+#[command(version = "1.5")]
+#[command(about = "Secure 2FA/TOTP manager for Linux terminal", long_about = "SafeLocked protects your seeds with AES-256-GCM. \nUse 'unlock' to access your codes.")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -23,22 +24,16 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Initialize the secure vault (first time use)
     Init,
-    /// Unlock the vault for a specific duration (default 60s)
     Unlock { 
-        #[arg(short, long, default_value_t = 60, help = "Duration in seconds before auto-locking")]
+        #[arg(short, long, default_value_t = 60)]
         timeout: i64 
     },
-    /// Lock the vault and clear the current session
     Lock,
-    /// Add a new service (e.g., safelocked add Google SEED123)
     Add { name: String, secret: String },
-    /// List all 2FA codes or filter by name (e.g., safelocked list google)
     List { name: Option<String> },
-    /// Remove a specific service from the vault
     Remove { name: String },
-    /// Delete the entire vault and all session data
+    Watch { name: String },
     Purge,
 }
 
@@ -50,17 +45,19 @@ fn get_master_key() -> Option<[u8; 32]> {
     let path = get_session_path();
     let data = fs::read_to_string(path).ok()?;
     let parts: Vec<&str> = data.split('|').collect();
-    
     if parts.len() != 2 { return None; }
-    
     let expiry = parts[1].parse::<i64>().ok()?;
     if Utc::now().timestamp() > expiry {
         let _ = fs::remove_file(get_session_path());
         return None;
     }
-
     let key_vec = hex::decode(parts[0]).ok()?;
     key_vec.try_into().ok()
+}
+
+fn print_locked_msg() {
+    println!("{} {}", "Error:".red().bold(), "Vault is locked.");
+    println!("   Run: 'safelocked unlock --timeout <seconds>'");
 }
 
 fn main() {
@@ -69,148 +66,141 @@ fn main() {
     match cli.command {
         Commands::Init => {
             if Vault::get_path().exists() {
-                println!("{}", "Error: Vault already exists at ~/.safelocked.vault".yellow());
+                println!("{}", "Error: Vault already exists.".yellow());
                 return;
             }
             print!("Create Master Password: ");
             io::stdout().flush().unwrap();
             let password = read_password().unwrap();
-            
             let mut salt = [0u8; 16];
             rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut salt);
             let vault = Vault::new(salt);
             let key = crypto::derive_key(&password, &salt);
             let encrypted = crypto::encrypt(&vault.serialize(), &key);
-            
             let mut final_data = salt.to_vec();
             final_data.extend(encrypted);
             vault.save_to_disk(&final_data).expect("Failed to write to disk");
-            println!("\n{}", "Success: Vault initialized. Run 'safelocked unlock' to begin.".green().bold());
+            println!("\n{}", "Success: Vault initialized!".green().bold());
         }
 
         Commands::Unlock { timeout } => {
             let data = match Vault::load_from_disk() {
                 Ok(d) => d,
-                Err(_) => { 
-                    println!("{} {}", "Error:".red().bold(), "Vault file not found. Run 'safelocked init'."); 
-                    return; 
-                }
+                Err(_) => { println!("Error: Vault file not found."); return; }
             };
-
             print!("Enter Master Password: ");
             io::stdout().flush().unwrap();
             let password = read_password().unwrap();
-            
             let salt: [u8; 16] = data[0..16].try_into().unwrap();
             let key = crypto::derive_key(&password, &salt);
-            
             if crypto::decrypt(&data[16..], &key).is_some() {
                 let expiry = Utc::now().timestamp() + timeout;
                 let session_data = format!("{}|{}", hex::encode(key), expiry);
                 fs::write(get_session_path(), session_data).expect("Failed to create session");
-                println!("\n{} session will expire in {}s.", "Vault Unlocked".green().bold(), timeout);
+                println!("\n{} for {}s.", "Vault Unlocked".green().bold(), timeout);
             } else {
-                println!("\n{}", "Error: Invalid password. Access denied.".red().bold());
+                println!("\n{}", "Error: Invalid password.".red().bold());
             }
         }
 
         Commands::Lock => {
             let _ = fs::remove_file(get_session_path());
-            println!("{}", "Vault locked and session cleared.".yellow());
+            println!("{}", "Vault locked.".yellow());
         }
 
         Commands::Add { name, secret } => {
             let key = match get_master_key() {
                 Some(k) => k,
-                None => {
-                    println!("{} {}", "Vault is locked.".red().bold(), "Please unlock first:");
-                    println!("   safelocked unlock --timeout 60");
-                    return;
-                }
+                None => { print_locked_msg(); return; }
             };
             let data = Vault::load_from_disk().unwrap();
             let mut vault = Vault::deserialize(&crypto::decrypt(&data[16..], &key).unwrap());
-            
             vault.items.push(TwoFactorItem { name: name.clone(), secret });
             let encrypted = crypto::encrypt(&vault.serialize(), &key);
             let mut final_data = vault.salt.to_vec();
             final_data.extend(encrypted);
             vault.save_to_disk(&final_data).unwrap();
-            println!("Service '{}' added successfully.", name.cyan().bold());
+            println!("Service '{}' added.", name.cyan().bold());
         }
 
         Commands::List { name } => {
             let key = match get_master_key() {
                 Some(k) => k,
-                None => {
-                    println!("{} {}", "Vault is locked.".red().bold(), "Unlock to view codes:");
-                    println!("   safelocked unlock --timeout <seconds>");
-                    return;
-                }
+                None => { print_locked_msg(); return; }
             };
-
             let data = Vault::load_from_disk().unwrap();
             let vault = Vault::deserialize(&crypto::decrypt(&data[16..], &key).expect("Decryption failed"));
-            
             println!("\n{:<20} {:<10} {:<10}", "SERVICE".bold(), "CODE".bold(), "EXPIRES".bold());
             println!("{}", "-".repeat(45).blue());
-
             let items_to_show: Vec<TwoFactorItem> = match name {
                 Some(n) => vault.items.into_iter().filter(|i| i.name.to_lowercase().contains(&n.to_lowercase())).collect(),
                 None => vault.items,
             };
-
-            if items_to_show.is_empty() {
-                println!("{}", "No services found.".yellow());
-                return;
-            }
-
             for item in items_to_show {
                 let code = totp::generate_code(&item.secret).unwrap_or_else(|| "ERR".to_string());
                 let secs = totp::get_remaining_seconds();
                 let time_color = if secs <= 7 { secs.to_string().red() } else { secs.to_string().green() };
                 println!("{:<20} {:<10} {:<10}", item.name.cyan(), code.white().bold(), format!("{}s", time_color));
             }
-            println!("");
+        }
+
+        Commands::Watch { name } => {
+            let key = match get_master_key() {
+                Some(k) => k,
+                None => { print_locked_msg(); return; }
+            };
+            println!("Starting Live Watch for {} (Ctrl+C to exit)...", name.cyan().bold());
+            loop {
+                if get_master_key().is_none() {
+                    println!("\n{}", "Session expired. Vault locked.".red());
+                    break;
+                }
+                let data = Vault::load_from_disk().unwrap();
+                let vault = Vault::deserialize(&crypto::decrypt(&data[16..], &key).unwrap());
+                
+                if let Some(item) = vault.items.iter().find(|i| i.name.to_lowercase() == name.to_lowercase()) {
+                    let code = totp::generate_code(&item.secret).unwrap_or_default();
+                    let secs = totp::get_remaining_seconds();
+                    let time_color = if secs <= 7 { secs.to_string().red() } else { secs.to_string().green() };
+
+                    // O segredo aqui é o \x1B[K para limpar o resto da linha
+                    print!("\rService: {:<15} Code: {:<10} Time: {:<5}s\x1B[K", item.name.cyan(), code.white().bold(), time_color);
+                    io::stdout().flush().unwrap();
+                } else {
+                    println!("\nService '{}' not found.", name.yellow());
+                    break;
+                }
+                thread::sleep(Duration::from_millis(500));
+            }
         }
 
         Commands::Remove { name } => {
             let key = match get_master_key() {
                 Some(k) => k,
-                None => {
-                    println!("{} {}", "Vault is locked.".red().bold(), "Unlock to remove services.");
-                    return;
-                }
+                None => { print_locked_msg(); return; }
             };
             let data = Vault::load_from_disk().unwrap();
             let mut vault = Vault::deserialize(&crypto::decrypt(&data[16..], &key).unwrap());
-            
             let original_len = vault.items.len();
             vault.items.retain(|i| i.name.to_lowercase() != name.to_lowercase());
-
             if vault.items.len() < original_len {
                 let encrypted = crypto::encrypt(&vault.serialize(), &key);
                 let mut final_data = vault.salt.to_vec();
                 final_data.extend(encrypted);
                 vault.save_to_disk(&final_data).unwrap();
                 println!("Service '{}' removed.", name.cyan().bold());
-            } else {
-                println!("Service '{}' not found.", name.yellow());
             }
         }
 
         Commands::Purge => {
-            print!("Are you sure you want to delete EVERYTHING? (y/N): ");
+            print!("Purge everything? (y/N): ");
             io::stdout().flush().unwrap();
             let mut confirm = String::new();
             io::stdin().read_line(&mut confirm).unwrap();
-            
             if confirm.trim().to_lowercase() == "y" {
                 let _ = fs::remove_file(Vault::get_path());
                 let _ = fs::remove_file(get_session_path());
-                println!("{}", "Success: Vault and sessions purged.".green().bold());
-            } else {
-                println!("Purge cancelled.");
+                println!("Success: Purged.");
             }
         }
     }
