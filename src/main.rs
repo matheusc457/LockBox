@@ -69,7 +69,7 @@ fn get_master_key() -> Option<[u8; 32]> {
     key_vec.try_into().ok()
 }
 
-fn print_locked_msg(){
+fn print_locked_msg() {
     println!("{} Vault is locked.", "Error:".red().bold());
     println!("   Run: 'safelocked unlock --timeout <seconds>'");
 }
