@@ -148,6 +148,7 @@ pub fn save_vault(vault: &Vault, key: &[u8; 32]) {
     let encrypted = crypto::encrypt(&vault.serialize(), key);
     let mut final_data = vault.salt.to_vec();
     final_data.extend(encrypted);
-    vault.save_to_disk(&final_data).expect("Failed to save vault");
+    vault
+        .save_to_disk(&final_data)
+        .expect("Failed to save vault");
 }
-
