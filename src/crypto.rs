@@ -45,3 +45,64 @@ pub fn decrypt(encrypted_data: &[u8], key: &[u8; 32]) -> Option<Vec<u8>> {
 
     cipher.decrypt(nonce, ciphertext).ok()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_encrypt_decrypt_roundtrip() {
+        let key = [0u8; 32];
+        let data = b"hello safelocked";
+        let encrypted = encrypt(data, &key);
+        let decrypted = decrypt(&encrypted, &key).expect("Decryption failed");
+        assert_eq!(decrypted, data);
+    }
+
+    #[test]
+    fn test_decrypt_wrong_key_returns_none() {
+        let key = [0u8; 32];
+        let wrong_key = [1u8; 32];
+        let encrypted = encrypt(b"secret data", &key);
+        assert!(decrypt(&encrypted, &wrong_key).is_none());
+    }
+
+    #[test]
+    fn test_decrypt_too_short_returns_none() {
+        let key = [0u8; 32];
+        assert!(decrypt(&[0u8; 8], &key).is_none());
+    }
+
+    #[test]
+    fn test_encrypt_produces_different_nonces() {
+        let key = [0u8; 32];
+        let data = b"same data";
+        let enc1 = encrypt(data, &key);
+        let enc2 = encrypt(data, &key);
+        // Different nonces means different ciphertext
+        assert_ne!(enc1, enc2);
+    }
+
+    #[test]
+    fn test_derive_key_is_deterministic() {
+        let salt = [42u8; 16];
+        let key1 = derive_key("password", &salt);
+        let key2 = derive_key("password", &salt);
+        assert_eq!(key1, key2);
+    }
+
+    #[test]
+    fn test_derive_key_different_passwords() {
+        let salt = [42u8; 16];
+        let key1 = derive_key("password1", &salt);
+        let key2 = derive_key("password2", &salt);
+        assert_ne!(key1, key2);
+    }
+
+    #[test]
+    fn test_derive_key_different_salts() {
+        let key1 = derive_key("password", &[1u8; 16]);
+        let key2 = derive_key("password", &[2u8; 16]);
+        assert_ne!(key1, key2);
+    }
+}

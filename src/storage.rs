@@ -49,3 +49,37 @@ impl Vault {
         serde_json::from_slice(data).ok()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_vault_serialize_deserialize_roundtrip() {
+        let salt = [7u8; 32];
+        let mut vault = Vault::new(salt);
+        vault.items.push(TwoFactorItem {
+            name: "Google".to_string(),
+            secret: "JBSWY3DPEHPK3PXP".to_string(),
+        });
+
+        let serialized = vault.serialize();
+        let restored = Vault::deserialize(&serialized).expect("Deserialization failed");
+
+        assert_eq!(restored.salt, salt);
+        assert_eq!(restored.items.len(), 1);
+        assert_eq!(restored.items[0].name, "Google");
+        assert_eq!(restored.items[0].secret, "JBSWY3DPEHPK3PXP");
+    }
+
+    #[test]
+    fn test_deserialize_corrupted_data_returns_none() {
+        assert!(Vault::deserialize(b"this is not valid json").is_none());
+    }
+
+    #[test]
+    fn test_new_vault_is_empty() {
+        let vault = Vault::new([0u8; 32]);
+        assert!(vault.items.is_empty());
+    }
+}
