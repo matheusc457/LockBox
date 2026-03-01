@@ -1,21 +1,16 @@
-use totp_rs::{Algorithm, Secret, TOTP};
 use std::time::SystemTime;
+use totp_rs::{Algorithm, Secret, TOTP};
 
 pub fn generate_code(secret_str: &str) -> Option<String> {
-    let mut secret_bytes = Secret::Encoded(secret_str.to_string()).to_bytes()
+    let mut secret_bytes = Secret::Encoded(secret_str.to_string())
+        .to_bytes()
         .unwrap_or_else(|_| secret_str.as_bytes().to_vec());
 
     if secret_bytes.len() < 16 {
         secret_bytes.resize(16, 0);
     }
 
-    let totp = match TOTP::new(
-        Algorithm::SHA1,
-        6,
-        1,
-        30,
-        secret_bytes,
-    ) {
+    let totp = match TOTP::new(Algorithm::SHA1, 6, 1, 30, secret_bytes) {
         Ok(t) => t,
         Err(_) => return None,
     };
@@ -35,4 +30,3 @@ pub fn get_remaining_seconds() -> u64 {
         .as_secs();
     30 - (time % 30)
 }
-

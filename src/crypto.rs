@@ -12,7 +12,7 @@ pub fn derive_key(password: &str, salt: &[u8]) -> [u8; 32] {
     let mut key = [0u8; 32];
     let salt_string = SaltString::encode_b64(salt).expect("Salt error");
     let argon2 = Argon2::default();
-    
+
     if let Ok(password_hash) = argon2.hash_password(password.as_bytes(), &salt_string) {
         if let Some(hash_bytes) = password_hash.hash {
             key.copy_from_slice(&hash_bytes.as_bytes()[..32]);
@@ -27,9 +27,7 @@ pub fn encrypt(data: &[u8], key: &[u8; 32]) -> Vec<u8> {
     rand::thread_rng().fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::from_slice(&nonce_bytes);
 
-    let ciphertext = cipher
-        .encrypt(nonce, data)
-        .expect("Encrypt error");
+    let ciphertext = cipher.encrypt(nonce, data).expect("Encrypt error");
 
     let mut encrypted_data = nonce_bytes.to_vec();
     encrypted_data.extend_from_slice(&ciphertext);
@@ -47,4 +45,3 @@ pub fn decrypt(encrypted_data: &[u8], key: &[u8; 32]) -> Option<Vec<u8>> {
 
     cipher.decrypt(nonce, ciphertext).ok()
 }
-

@@ -2,21 +2,24 @@ mod crypto;
 mod storage;
 mod totp;
 
-use clap::{Parser, Subcommand};
-use storage::{Vault, TwoFactorItem};
 use chrono::Utc;
-use rpassword::read_password;
-use std::io::{self, Write};
-use std::fs;
-use std::path::PathBuf;
+use clap::{Parser, Subcommand};
 use colored::*;
+use rpassword::read_password;
+use std::fs;
+use std::io::{self, Write};
+use std::path::PathBuf;
 use std::{thread, time::Duration};
+use storage::{TwoFactorItem, Vault};
 
 #[derive(Parser)]
 #[command(name = "safelocked")]
 #[command(author = "Matheus <://github.com>")]
 #[command(version = "1.5")]
-#[command(about = "Secure 2FA/TOTP manager for Linux terminal", long_about = "SafeLocked protects your seeds with AES-256-GCM. \nUse 'unlock' to access your codes.")]
+#[command(
+    about = "Secure 2FA/TOTP manager for Linux terminal",
+    long_about = "SafeLocked protects your seeds with AES-256-GCM. \nUse 'unlock' to access your codes."
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -25,15 +28,24 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     Init,
-    Unlock { 
+    Unlock {
         #[arg(short, long, default_value_t = 60)]
-        timeout: i64 
+        timeout: i64,
     },
     Lock,
-    Add { name: String, secret: String },
-    List { name: Option<String> },
-    Remove { name: String },
-    Watch { name: String },
+    Add {
+        name: String,
+        secret: String,
+    },
+    List {
+        name: Option<String>,
+    },
+    Remove {
+        name: String,
+    },
+    Watch {
+        name: String,
+    },
     Purge,
 }
 
@@ -45,7 +57,9 @@ fn get_master_key() -> Option<[u8; 32]> {
     let path = get_session_path();
     let data = fs::read_to_string(path).ok()?;
     let parts: Vec<&str> = data.split('|').collect();
-    if parts.len() != 2 { return None; }
+    if parts.len() != 2 {
+        return None;
+    }
     let expiry = parts[1].parse::<i64>().ok()?;
     if Utc::now().timestamp() > expiry {
         let _ = fs::remove_file(get_session_path());
@@ -79,14 +93,19 @@ fn main() {
             let encrypted = crypto::encrypt(&vault.serialize(), &key);
             let mut final_data = salt.to_vec();
             final_data.extend(encrypted);
-            vault.save_to_disk(&final_data).expect("Failed to write to disk");
+            vault
+                .save_to_disk(&final_data)
+                .expect("Failed to write to disk");
             println!("\n{}", "Success: Vault initialized!".green().bold());
         }
 
         Commands::Unlock { timeout } => {
             let data = match Vault::load_from_disk() {
                 Ok(d) => d,
-                Err(_) => { println!("Error: Vault file not found."); return; }
+                Err(_) => {
+                    println!("Error: Vault file not found.");
+                    return;
+                }
             };
             print!("Enter Master Password: ");
             io::stdout().flush().unwrap();
@@ -111,11 +130,17 @@ fn main() {
         Commands::Add { name, secret } => {
             let key = match get_master_key() {
                 Some(k) => k,
-                None => { print_locked_msg(); return; }
+                None => {
+                    print_locked_msg();
+                    return;
+                }
             };
             let data = Vault::load_from_disk().unwrap();
             let mut vault = Vault::deserialize(&crypto::decrypt(&data[16..], &key).unwrap());
-            vault.items.push(TwoFactorItem { name: name.clone(), secret });
+            vault.items.push(TwoFactorItem {
+                name: name.clone(),
+                secret,
+            });
             let encrypted = crypto::encrypt(&vault.serialize(), &key);
             let mut final_data = vault.salt.to_vec();
             final_data.extend(encrypted);
@@ -126,30 +151,58 @@ fn main() {
         Commands::List { name } => {
             let key = match get_master_key() {
                 Some(k) => k,
-                None => { print_locked_msg(); return; }
+                None => {
+                    print_locked_msg();
+                    return;
+                }
             };
             let data = Vault::load_from_disk().unwrap();
-            let vault = Vault::deserialize(&crypto::decrypt(&data[16..], &key).expect("Decryption failed"));
-            println!("\n{:<20} {:<10} {:<10}", "SERVICE".bold(), "CODE".bold(), "EXPIRES".bold());
+            let vault =
+                Vault::deserialize(&crypto::decrypt(&data[16..], &key).expect("Decryption failed"));
+            println!(
+                "\n{:<20} {:<10} {:<10}",
+                "SERVICE".bold(),
+                "CODE".bold(),
+                "EXPIRES".bold()
+            );
             println!("{}", "-".repeat(45).blue());
             let items_to_show: Vec<TwoFactorItem> = match name {
-                Some(n) => vault.items.into_iter().filter(|i| i.name.to_lowercase().contains(&n.to_lowercase())).collect(),
+                Some(n) => vault
+                    .items
+                    .into_iter()
+                    .filter(|i| i.name.to_lowercase().contains(&n.to_lowercase()))
+                    .collect(),
                 None => vault.items,
             };
             for item in items_to_show {
                 let code = totp::generate_code(&item.secret).unwrap_or_else(|| "ERR".to_string());
                 let secs = totp::get_remaining_seconds();
-                let time_color = if secs <= 7 { secs.to_string().red() } else { secs.to_string().green() };
-                println!("{:<20} {:<10} {:<10}", item.name.cyan(), code.white().bold(), format!("{}s", time_color));
+                let time_color = if secs <= 7 {
+                    secs.to_string().red()
+                } else {
+                    secs.to_string().green()
+                };
+                println!(
+                    "{:<20} {:<10} {:<10}",
+                    item.name.cyan(),
+                    code.white().bold(),
+                    format!("{}s", time_color)
+                );
             }
         }
 
         Commands::Watch { name } => {
             let key = match get_master_key() {
                 Some(k) => k,
-                None => { print_locked_msg(); return; }
+                None => {
+                    print_locked_msg();
+                    return;
+                }
             };
-            println!("Starting Live Watch for {} (Ctrl+C to exit)...", name.cyan().bold());
+            println!(
+                "Starting Live Watch for {} (Ctrl+C to exit)...",
+                name.cyan().bold()
+            );
             loop {
                 if get_master_key().is_none() {
                     println!("\n{}", "Session expired. Vault locked.".red());
@@ -157,14 +210,27 @@ fn main() {
                 }
                 let data = Vault::load_from_disk().unwrap();
                 let vault = Vault::deserialize(&crypto::decrypt(&data[16..], &key).unwrap());
-                
-                if let Some(item) = vault.items.iter().find(|i| i.name.to_lowercase() == name.to_lowercase()) {
+
+                if let Some(item) = vault
+                    .items
+                    .iter()
+                    .find(|i| i.name.to_lowercase() == name.to_lowercase())
+                {
                     let code = totp::generate_code(&item.secret).unwrap_or_default();
                     let secs = totp::get_remaining_seconds();
-                    let time_color = if secs <= 7 { secs.to_string().red() } else { secs.to_string().green() };
+                    let time_color = if secs <= 7 {
+                        secs.to_string().red()
+                    } else {
+                        secs.to_string().green()
+                    };
 
                     // O segredo aqui é o \x1B[K para limpar o resto da linha
-                    print!("\rService: {:<15} Code: {:<10} Time: {:<5}s\x1B[K", item.name.cyan(), code.white().bold(), time_color);
+                    print!(
+                        "\rService: {:<15} Code: {:<10} Time: {:<5}s\x1B[K",
+                        item.name.cyan(),
+                        code.white().bold(),
+                        time_color
+                    );
                     io::stdout().flush().unwrap();
                 } else {
                     println!("\nService '{}' not found.", name.yellow());
@@ -177,12 +243,17 @@ fn main() {
         Commands::Remove { name } => {
             let key = match get_master_key() {
                 Some(k) => k,
-                None => { print_locked_msg(); return; }
+                None => {
+                    print_locked_msg();
+                    return;
+                }
             };
             let data = Vault::load_from_disk().unwrap();
             let mut vault = Vault::deserialize(&crypto::decrypt(&data[16..], &key).unwrap());
             let original_len = vault.items.len();
-            vault.items.retain(|i| i.name.to_lowercase() != name.to_lowercase());
+            vault
+                .items
+                .retain(|i| i.name.to_lowercase() != name.to_lowercase());
             if vault.items.len() < original_len {
                 let encrypted = crypto::encrypt(&vault.serialize(), &key);
                 let mut final_data = vault.salt.to_vec();
@@ -205,4 +276,3 @@ fn main() {
         }
     }
 }
-

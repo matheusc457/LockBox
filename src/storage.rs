@@ -46,4 +46,3 @@ impl Vault {
         serde_json::from_slice(data).expect("Failed to deserialize vault")
     }
 }
-
