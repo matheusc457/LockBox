@@ -25,28 +25,81 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Initialize a new encrypted vault protected by a master password.
+    /// Example: safelocked init
     Init,
 
+    /// Unlock the vault and start the background agent.
+    /// The key stays in memory until you run 'lock'. Works across all terminal sessions.
+    /// Example: safelocked unlock
     Unlock,
 
+    /// Lock the vault and stop the background agent.
+    /// Terminates the agent and removes the key from memory immediately.
+    /// Example: safelocked lock
     Lock,
 
+    /// Show whether the vault is currently unlocked.
+    /// Example: safelocked status
     Status,
 
-    Add { name: String },
+    /// Add a new TOTP service to the vault.
+    /// The secret is entered interactively and never exposed in the shell history.
+    /// Example: safelocked add Google
+    Add {
+        /// Name of the service (e.g. Google, GitHub, AWS)
+        name: String,
+    },
 
-    List { name: Option<String> },
+    /// List all TOTP codes or filter by name.
+    /// Displays service name, current code and time remaining.
+    /// Examples: safelocked list / safelocked list Google
+    List {
+        /// Optional filter to search by service name
+        name: Option<String>,
+    },
 
-    Rename { name: String, new_name: String },
+    /// Rename an existing service.
+    /// Example: safelocked rename Google Gmail
+    Rename {
+        /// Current name of the service
+        name: String,
+        /// New name for the service
+        new_name: String,
+    },
 
-    Remove { name: String },
+    /// Remove a service from the vault.
+    /// Example: safelocked remove Google
+    Remove {
+        /// Name of the service to remove
+        name: String,
+    },
 
-    Watch { name: String },
+    /// Watch a TOTP code update in real time. Press Ctrl+C to exit.
+    /// Example: safelocked watch Google
+    Watch {
+        /// Name of the service to watch
+        name: String,
+    },
 
-    Export { path: PathBuf },
+    /// Export the vault to a backup file.
+    /// Choose between encrypted (.slbackup) or plain JSON.
+    /// Encrypted backups use the same password as your vault.
+    /// Example: safelocked export ~/backup
+    Export {
+        /// Destination path for the backup file (without extension)
+        path: PathBuf,
+    },
 
+    /// Import services from a backup file (.slbackup or .json).
+    /// You will be prompted for the directory and file name.
+    /// Existing services with the same name are skipped automatically.
+    /// Example: safelocked import
     Import,
 
+    /// Delete the vault and stop the agent permanently.
+    /// This action is irreversible. Make sure you have a backup first.
+    /// Example: safelocked purge
     Purge,
 }
 
@@ -452,7 +505,6 @@ fn main() {
                 None => return,
             };
 
-            // Ask for directory
             print!("Enter directory path: ");
             io::stdout().flush().unwrap();
             let mut dir_input = String::new();
@@ -472,14 +524,12 @@ fn main() {
                 return;
             }
 
-            // Ask for filename without extension
             print!("Enter file name (without extension): ");
             io::stdout().flush().unwrap();
             let mut name_input = String::new();
             io::stdin().read_line(&mut name_input).unwrap();
             let file_stem = name_input.trim();
 
-            // Try .slbackup first, then .json
             let slbackup_path = dir.join(format!("{}.slbackup", file_stem));
             let json_path = dir.join(format!("{}.json", file_stem));
 
