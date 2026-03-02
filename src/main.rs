@@ -35,7 +35,7 @@ enum Commands {
     Remove { name: String },
     Watch { name: String },
     Export { path: PathBuf },
-    Import { path: PathBuf },
+    Import,
     Purge,
 }
 
@@ -66,6 +66,14 @@ fn load_vault_or_exit(key: &[u8; 32]) -> Option<storage::Vault> {
             );
             None
         }
+    }
+}
+
+fn format_code(code: &str) -> String {
+    if code.len() == 6 {
+        format!("{} {}", &code[..3], &code[3..])
+    } else {
+        code.to_string()
     }
 }
 
@@ -210,7 +218,9 @@ fn main() {
             );
             println!("{}", "-".repeat(45).blue());
             for item in items_to_show {
-                let code = totp::generate_code(&item.secret).unwrap_or_else(|| "ERR".to_string());
+                let raw_code =
+                    totp::generate_code(&item.secret).unwrap_or_else(|| "ERR".to_string());
+                let code = format_code(&raw_code);
                 let secs = totp::get_remaining_seconds();
                 let time_color = if secs <= 7 {
                     secs.to_string().red()
@@ -318,7 +328,8 @@ fn main() {
                     .iter()
                     .find(|i| i.name.to_lowercase() == name.to_lowercase())
                 {
-                    let code = totp::generate_code(&item.secret).unwrap_or_default();
+                    let raw_code = totp::generate_code(&item.secret).unwrap_or_default();
+                    let code = format_code(&raw_code);
                     let secs = totp::get_remaining_seconds();
                     let time_color = if secs <= 7 {
                         secs.to_string().red()
@@ -367,11 +378,7 @@ fn main() {
 
             match choice.trim() {
                 "1" => {
-                    let export_path = if path.extension().is_none() {
-                        path.with_extension("slbackup")
-                    } else {
-                        path.clone()
-                    };
+                    let export_path = path.with_extension("slbackup");
                     let json = vault.serialize();
                     let encrypted = crypto::encrypt(&json, &key);
                     std::fs::write(&export_path, &encrypted).expect("Failed to write export file");
@@ -383,8 +390,8 @@ fn main() {
                 }
                 "2" => {
                     println!();
-                    println!("{}", "⚠️  WARNING ⚠️".red().bold());
-                    println!("{}", "═".repeat(50).red());
+                    println!("{}", "WARNING".red().bold());
+                    println!("{}", "=".repeat(50).red());
                     println!(
                         "{}",
                         "  This will export ALL your TOTP secrets as".red().bold()
@@ -394,7 +401,7 @@ fn main() {
                         "  PLAIN TEXT. Anyone with this file will have".red().bold()
                     );
                     println!("{}", "  FULL ACCESS to all your 2FA accounts.".red().bold());
-                    println!("{}", "═".repeat(50).red());
+                    println!("{}", "=".repeat(50).red());
                     println!();
                     print!("Type {} to confirm: ", "I UNDERSTAND THE RISK".red().bold());
                     io::stdout().flush().unwrap();
@@ -404,11 +411,7 @@ fn main() {
                         println!("{}", "Aborted.".yellow());
                         return;
                     }
-                    let export_path = if path.extension().is_none() {
-                        path.with_extension("json")
-                    } else {
-                        path.clone()
-                    };
+                    let export_path = path.with_extension("json");
                     std::fs::write(&export_path, vault.serialize())
                         .expect("Failed to write export file");
                     println!(
@@ -423,7 +426,7 @@ fn main() {
             }
         }
 
-        Commands::Import { path } => {
+        Commands::Import => {
             let key = match get_key_or_exit() {
                 Some(k) => k,
                 None => return,
@@ -433,56 +436,89 @@ fn main() {
                 None => return,
             };
 
-            let data = match std::fs::read(&path) {
-                Ok(d) => d,
-                Err(_) => {
-                    println!(
-                        "{} File '{}' not found.",
-                        "Error:".red().bold(),
-                        path.display().to_string().cyan()
-                    );
-                    return;
-                }
-            };
+            // Ask for directory
+            print!("Enter directory path: ");
+            io::stdout().flush().unwrap();
+            let mut dir_input = String::new();
+            io::stdin().read_line(&mut dir_input).unwrap();
+            let dir = PathBuf::from(dir_input.trim());
 
-            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-            let import_vault = match ext {
-                "slbackup" => {
-                    let decrypted = match crypto::decrypt(&data, &key) {
-                        Some(d) => d,
-                        None => {
-                            println!(
-                                "{}",
-                                "Error: Failed to decrypt backup. Wrong vault password?"
-                                    .red()
-                                    .bold()
-                            );
-                            return;
-                        }
-                    };
-                    match Vault::deserialize(&decrypted) {
-                        Some(v) => v,
-                        None => {
-                            println!("{}", "Error: Backup file is corrupted.".red().bold());
-                            return;
-                        }
+            if !dir.exists() {
+                println!(
+                    "{} Directory '{}' not found.",
+                    "Error:".red().bold(),
+                    dir.display().to_string().cyan()
+                );
+                return;
+            }
+            if !dir.is_dir() {
+                println!("{}", "Error: Path is not a directory.".red().bold());
+                return;
+            }
+
+            // Ask for filename without extension
+            print!("Enter file name (without extension): ");
+            io::stdout().flush().unwrap();
+            let mut name_input = String::new();
+            io::stdin().read_line(&mut name_input).unwrap();
+            let file_stem = name_input.trim();
+
+            // Try .slbackup first, then .json
+            let slbackup_path = dir.join(format!("{}.slbackup", file_stem));
+            let json_path = dir.join(format!("{}.json", file_stem));
+
+            let (data, is_encrypted) = if slbackup_path.exists() {
+                match std::fs::read(&slbackup_path) {
+                    Ok(d) => (d, true),
+                    Err(_) => {
+                        println!("{}", "Error: Failed to read file.".red().bold());
+                        return;
                     }
                 }
-                "json" => match Vault::deserialize(&data) {
+            } else if json_path.exists() {
+                match std::fs::read(&json_path) {
+                    Ok(d) => (d, false),
+                    Err(_) => {
+                        println!("{}", "Error: Failed to read file.".red().bold());
+                        return;
+                    }
+                }
+            } else {
+                println!(
+                    "{} No file named '{}' found (.slbackup or .json).",
+                    "Error:".red().bold(),
+                    file_stem.cyan()
+                );
+                return;
+            };
+
+            let import_vault = if is_encrypted {
+                let decrypted = match crypto::decrypt(&data, &key) {
+                    Some(d) => d,
+                    None => {
+                        println!(
+                            "{}",
+                            "Error: Failed to decrypt backup. Wrong vault password?"
+                                .red()
+                                .bold()
+                        );
+                        return;
+                    }
+                };
+                match Vault::deserialize(&decrypted) {
+                    Some(v) => v,
+                    None => {
+                        println!("{}", "Error: Backup file is corrupted.".red().bold());
+                        return;
+                    }
+                }
+            } else {
+                match Vault::deserialize(&data) {
                     Some(v) => v,
                     None => {
                         println!("{}", "Error: Invalid JSON backup file.".red().bold());
                         return;
                     }
-                },
-                _ => {
-                    println!(
-                        "{}",
-                        "Error: Unknown file format. Use .slbackup or .json."
-                            .red()
-                            .bold()
-                    );
-                    return;
                 }
             };
 

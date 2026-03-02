@@ -16,6 +16,7 @@ The project follows a local-first security model. Authentication secrets are enc
 - Agent session persists until explicit `lock` command
 - Socket stored in RAM-backed directory (`/run/user/<uid>`, `/tmp`, or `$HOME`)
 - No decrypted secrets written to disk
+- Encrypted backup and restore via `export` and `import`
 - Fully offline operation
 
 ---
@@ -107,6 +108,22 @@ Remove a service:
 ```bash
 safelocked remove Google
 ```
+
+Export vault (encrypted or plain JSON):
+
+```bash
+safelocked export ~/backup
+```
+
+> Encrypted backups are saved as `.slbackup`. Plain JSON exports display a warning and require explicit confirmation.
+
+Import vault from backup:
+
+```bash
+safelocked import
+```
+
+> You will be prompted for the directory and file name. Both `.slbackup` and `.json` formats are supported. Existing services are skipped automatically.
 
 Lock vault:
 
