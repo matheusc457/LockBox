@@ -6,6 +6,7 @@ mod totp;
 use clap::{Parser, Subcommand};
 use colored::*;
 use std::io::{self, Write};
+use std::path::PathBuf;
 use std::{thread, time::Duration};
 use storage::{TwoFactorItem, Vault};
 
@@ -33,6 +34,8 @@ enum Commands {
     Rename { name: String, new_name: String },
     Remove { name: String },
     Watch { name: String },
+    Export { path: PathBuf },
+    Import { path: PathBuf },
     Purge,
 }
 
@@ -339,6 +342,179 @@ fn main() {
                 }
                 thread::sleep(Duration::from_millis(500));
             }
+        }
+
+        Commands::Export { path } => {
+            let key = match get_key_or_exit() {
+                Some(k) => k,
+                None => return,
+            };
+            let vault = match load_vault_or_exit(&key) {
+                Some(v) => v,
+                None => return,
+            };
+
+            println!("Export format:");
+            println!(
+                "  [1] {} (recommended)",
+                "Encrypted .slbackup".green().bold()
+            );
+            println!("  [2] {}", "Plain JSON".red().bold());
+            print!("Choose: ");
+            io::stdout().flush().unwrap();
+            let mut choice = String::new();
+            io::stdin().read_line(&mut choice).unwrap();
+
+            match choice.trim() {
+                "1" => {
+                    let export_path = if path.extension().is_none() {
+                        path.with_extension("slbackup")
+                    } else {
+                        path.clone()
+                    };
+                    let json = vault.serialize();
+                    let encrypted = crypto::encrypt(&json, &key);
+                    std::fs::write(&export_path, &encrypted).expect("Failed to write export file");
+                    println!(
+                        "{} Backup saved to '{}'.",
+                        "Success:".green().bold(),
+                        export_path.display().to_string().cyan()
+                    );
+                }
+                "2" => {
+                    println!();
+                    println!("{}", "⚠️  WARNING ⚠️".red().bold());
+                    println!("{}", "═".repeat(50).red());
+                    println!(
+                        "{}",
+                        "  This will export ALL your TOTP secrets as".red().bold()
+                    );
+                    println!(
+                        "{}",
+                        "  PLAIN TEXT. Anyone with this file will have".red().bold()
+                    );
+                    println!("{}", "  FULL ACCESS to all your 2FA accounts.".red().bold());
+                    println!("{}", "═".repeat(50).red());
+                    println!();
+                    print!("Type {} to confirm: ", "I UNDERSTAND THE RISK".red().bold());
+                    io::stdout().flush().unwrap();
+                    let mut confirm = String::new();
+                    io::stdin().read_line(&mut confirm).unwrap();
+                    if confirm.trim() != "I UNDERSTAND THE RISK" {
+                        println!("{}", "Aborted.".yellow());
+                        return;
+                    }
+                    let export_path = if path.extension().is_none() {
+                        path.with_extension("json")
+                    } else {
+                        path.clone()
+                    };
+                    std::fs::write(&export_path, &vault.serialize())
+                        .expect("Failed to write export file");
+                    println!(
+                        "{} Plain JSON saved to '{}'. Keep it safe!",
+                        "Success:".green().bold(),
+                        export_path.display().to_string().cyan()
+                    );
+                }
+                _ => {
+                    println!("{}", "Error: Invalid choice.".red().bold());
+                }
+            }
+        }
+
+        Commands::Import { path } => {
+            let key = match get_key_or_exit() {
+                Some(k) => k,
+                None => return,
+            };
+            let mut vault = match load_vault_or_exit(&key) {
+                Some(v) => v,
+                None => return,
+            };
+
+            let data = match std::fs::read(&path) {
+                Ok(d) => d,
+                Err(_) => {
+                    println!(
+                        "{} File '{}' not found.",
+                        "Error:".red().bold(),
+                        path.display().to_string().cyan()
+                    );
+                    return;
+                }
+            };
+
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            let import_vault = match ext {
+                "slbackup" => {
+                    let decrypted = match crypto::decrypt(&data, &key) {
+                        Some(d) => d,
+                        None => {
+                            println!(
+                                "{}",
+                                "Error: Failed to decrypt backup. Wrong vault password?"
+                                    .red()
+                                    .bold()
+                            );
+                            return;
+                        }
+                    };
+                    match Vault::deserialize(&decrypted) {
+                        Some(v) => v,
+                        None => {
+                            println!("{}", "Error: Backup file is corrupted.".red().bold());
+                            return;
+                        }
+                    }
+                }
+                "json" => match Vault::deserialize(&data) {
+                    Some(v) => v,
+                    None => {
+                        println!("{}", "Error: Invalid JSON backup file.".red().bold());
+                        return;
+                    }
+                },
+                _ => {
+                    println!(
+                        "{}",
+                        "Error: Unknown file format. Use .slbackup or .json."
+                            .red()
+                            .bold()
+                    );
+                    return;
+                }
+            };
+
+            let mut added = 0;
+            let mut skipped = 0;
+            for item in import_vault.items {
+                if vault
+                    .items
+                    .iter()
+                    .any(|i| i.name.to_lowercase() == item.name.to_lowercase())
+                {
+                    println!(
+                        "  {} Skipped '{}' (already exists).",
+                        "~".yellow(),
+                        item.name.cyan()
+                    );
+                    skipped += 1;
+                } else {
+                    println!("  {} Imported '{}'.", "+".green().bold(), item.name.cyan());
+                    vault.items.push(item);
+                    added += 1;
+                }
+            }
+
+            agent::save_vault(&vault, &key);
+            println!();
+            println!(
+                "{} Import complete: {} added, {} skipped.",
+                "Success:".green().bold(),
+                added.to_string().green(),
+                skipped.to_string().yellow()
+            );
         }
 
         Commands::Purge => {
