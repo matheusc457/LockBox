@@ -11,12 +11,12 @@ use std::{thread, time::Duration};
 use storage::{TwoFactorItem, Vault};
 
 #[derive(Parser)]
-#[command(name = "safelocked")]
+#[command(name = "lockbox")]
 #[command(author = "Matheus <://github.com>")]
 #[command(version = "1.5")]
 #[command(
     about = "Secure 2FA/TOTP manager for Linux terminal",
-    long_about = "SafeLocked protects your seeds with AES-256-GCM. \nUse 'unlock' to access your codes."
+    long_about = "LockBox protects your seeds with AES-256-GCM. \nUse 'unlock' to access your codes."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -28,31 +28,31 @@ enum Commands {
     /// Initialize a new encrypted vault
     ///
     /// Creates a vault protected by a master password.
-    /// Example: safelocked init
+    /// Example: lockbox init
     Init,
 
     /// Unlock the vault and start the background agent
     ///
     /// The key stays in memory until you run 'lock'.
     /// Works across all terminal sessions.
-    /// Example: safelocked unlock
+    /// Example: lockbox unlock
     Unlock,
 
     /// Lock the vault and stop the background agent
     ///
     /// Terminates the agent and removes the key from memory immediately.
-    /// Example: safelocked lock
+    /// Example: lockbox lock
     Lock,
 
     /// Show whether the vault is currently unlocked
     ///
-    /// Example: safelocked status
+    /// Example: lockbox status
     Status,
 
     /// Add a new TOTP service to the vault
     ///
     /// The secret is entered interactively and never exposed in the shell history.
-    /// Example: safelocked add Google
+    /// Example: lockbox add Google
     Add {
         /// Name of the service (e.g. Google, GitHub, AWS)
         name: String,
@@ -61,7 +61,7 @@ enum Commands {
     /// List all TOTP codes or filter by name
     ///
     /// Displays service name, current code and time remaining.
-    /// Examples: safelocked list / safelocked list Google
+    /// Examples: lockbox list / lockbox list Google
     List {
         /// Optional filter to search by service name
         name: Option<String>,
@@ -69,7 +69,7 @@ enum Commands {
 
     /// Rename an existing service
     ///
-    /// Example: safelocked rename Google Gmail
+    /// Example: lockbox rename Google Gmail
     Rename {
         /// Current name of the service
         name: String,
@@ -79,7 +79,7 @@ enum Commands {
 
     /// Remove a service from the vault
     ///
-    /// Example: safelocked remove Google
+    /// Example: lockbox remove Google
     Remove {
         /// Name of the service to remove
         name: String,
@@ -88,7 +88,7 @@ enum Commands {
     /// Watch a TOTP code update in real time
     ///
     /// Press Ctrl+C to exit.
-    /// Example: safelocked watch Google
+    /// Example: lockbox watch Google
     Watch {
         /// Name of the service to watch
         name: String,
@@ -98,7 +98,7 @@ enum Commands {
     ///
     /// Choose between encrypted (.slbackup) or plain JSON.
     /// Encrypted backups use the same password as your vault.
-    /// Example: safelocked export ~/backup
+    /// Example: lockbox export ~/backup
     Export {
         /// Destination path for the backup file (without extension)
         path: PathBuf,
@@ -109,19 +109,19 @@ enum Commands {
     /// Supports .slbackup and .json formats.
     /// You will be prompted for the directory and file name.
     /// Existing services with the same name are skipped automatically.
-    /// Example: safelocked import
+    /// Example: lockbox import
     Import,
 
     /// Delete the vault and stop the agent permanently
     ///
     /// This action is irreversible. Make sure you have a backup first.
-    /// Example: safelocked purge
+    /// Example: lockbox purge
     Purge,
 }
 
 fn print_locked_msg() {
     println!("{} Vault is locked.", "Error:".red().bold());
-    println!("   Run: {}", "safelocked unlock".cyan());
+    println!("   Run: {}", "lockbox unlock".cyan());
 }
 
 fn get_key_or_exit() -> Option<[u8; 32]> {
@@ -195,7 +195,7 @@ fn main() {
                 Err(_) => {
                     println!(
                         "{}",
-                        "Error: Vault not found. Run 'safelocked init' first."
+                        "Error: Vault not found. Run 'lockbox init' first."
                             .red()
                             .bold()
                     );

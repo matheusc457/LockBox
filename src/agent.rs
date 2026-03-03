@@ -13,19 +13,19 @@ pub fn get_socket_path() -> PathBuf {
     // 1. Prefer /run/user/<uid> (standard Linux with systemd)
     let xdg = PathBuf::from(format!("/run/user/{}", uid));
     if xdg.exists() {
-        return xdg.join("safelocked.sock");
+        return xdg.join("lockbox.sock");
     }
 
     // 2. Fallback to /tmp (available on most Unix systems)
     let tmp = PathBuf::from("/tmp");
     if tmp.exists() {
-        return tmp.join(format!("safelocked-{}.sock", uid));
+        return tmp.join(format!("lockbox-{}.sock", uid));
     }
 
     // 3. Last resort: home directory (Termux and minimal environments)
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".safelocked.sock")
+        .join(".lockbox.sock")
 }
 
 pub fn is_agent_running() -> bool {

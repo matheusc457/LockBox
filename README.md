@@ -1,10 +1,10 @@
-# SafeLocked
+# LockBox
 
-![CI](https://github.com/matheusc457/SafeLocked/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/matheusc457/LockBox/actions/workflows/ci.yml/badge.svg)
 
 > Secure and minimal TOTP (2FA) CLI manager for Linux, written in Rust.
 
-SafeLocked follows a local-first security model. Authentication secrets are encrypted at rest and only accessible during active agent sessions. Works fully offline with no cloud dependency.
+LockBox follows a local-first security model. Authentication secrets are encrypted at rest and only accessible during active agent sessions. Works fully offline with no cloud dependency.
 
 ---
 
@@ -32,16 +32,16 @@ SafeLocked follows a local-first security model. Authentication secrets are encr
 ### Build from source
 
 ```bash
-git clone https://github.com/matheusc457/SafeLocked
-cd SafeLocked
+git clone https://github.com/matheusc457/LockBox
+cd LockBox
 cargo build --release
-sudo cp target/release/safelocked /usr/local/bin/
+sudo cp target/release/lockbox /usr/local/bin/
 ```
 
 Verify:
 
 ```bash
-safelocked --help
+lockbox --help
 ```
 
 ---
@@ -49,28 +49,28 @@ safelocked --help
 ## Usage
 
 ```bash
-safelocked init              # Initialize a new vault
-safelocked unlock            # Unlock and start background agent
-safelocked status            # Check if vault is unlocked
-safelocked add Google        # Add a new service (secret entered interactively)
-safelocked list              # List all TOTP codes
-safelocked list Google       # Filter by name
-safelocked watch Google      # Watch a code update in real time
-safelocked rename Google Gmail  # Rename a service
-safelocked remove Google     # Remove a service
-safelocked export ~/backup   # Export vault (encrypted or plain JSON)
-safelocked import            # Import from backup
-safelocked lock              # Lock vault and stop agent
-safelocked purge             # Delete vault permanently
+lockbox init              # Initialize a new vault
+lockbox unlock            # Unlock and start background agent
+lockbox status            # Check if vault is unlocked
+lockbox add Google        # Add a new service (secret entered interactively)
+lockbox list              # List all TOTP codes
+lockbox list Google       # Filter by name
+lockbox watch Google      # Watch a code update in real time
+lockbox rename Google Gmail  # Rename a service
+lockbox remove Google     # Remove a service
+lockbox export ~/backup   # Export vault (encrypted or plain JSON)
+lockbox import            # Import from backup
+lockbox lock              # Lock vault and stop agent
+lockbox purge             # Delete vault permanently
 ```
 
-> Run `safelocked <command> --help` for detailed information about any command.
+> Run `lockbox <command> --help` for detailed information about any command.
 
 ---
 
 ## Security
 
-SafeLocked uses multiple layers of protection:
+LockBox uses multiple layers of protection:
 
 **AES-256-GCM** encrypts the vault file on disk. Without the correct key the file is unreadable. The GCM tag also detects any tampering.
 
@@ -88,7 +88,7 @@ SafeLocked uses multiple layers of protection:
 
 ### Threat model
 
-SafeLocked is designed for personal use on a trusted device. All protections hold as long as your user session is not compromised. If an attacker gains active access to your user session, all secrets accessible in that session are at risk — this is true of any local password or 2FA manager.
+LockBox is designed for personal use on a trusted device. All protections hold as long as your user session is not compromised. If an attacker gains active access to your user session, all secrets accessible in that session are at risk — this is true of any local password or 2FA manager.
 
 ---
 

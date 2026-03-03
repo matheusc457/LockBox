@@ -24,7 +24,7 @@ impl Vault {
 
     pub fn get_path() -> PathBuf {
         let mut path = dirs::home_dir().expect("Could not find home directory");
-        path.push(".safelocked.vault");
+        path.push(".lockbox.vault");
         path
     }
 
