@@ -25,25 +25,32 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Initialize a new encrypted vault protected by a master password.
+    /// Initialize a new encrypted vault
+    ///
+    /// Creates a vault protected by a master password.
     /// Example: safelocked init
     Init,
 
-    /// Unlock the vault and start the background agent.
-    /// The key stays in memory until you run 'lock'. Works across all terminal sessions.
+    /// Unlock the vault and start the background agent
+    ///
+    /// The key stays in memory until you run 'lock'.
+    /// Works across all terminal sessions.
     /// Example: safelocked unlock
     Unlock,
 
-    /// Lock the vault and stop the background agent.
+    /// Lock the vault and stop the background agent
+    ///
     /// Terminates the agent and removes the key from memory immediately.
     /// Example: safelocked lock
     Lock,
 
-    /// Show whether the vault is currently unlocked.
+    /// Show whether the vault is currently unlocked
+    ///
     /// Example: safelocked status
     Status,
 
-    /// Add a new TOTP service to the vault.
+    /// Add a new TOTP service to the vault
+    ///
     /// The secret is entered interactively and never exposed in the shell history.
     /// Example: safelocked add Google
     Add {
@@ -51,7 +58,8 @@ enum Commands {
         name: String,
     },
 
-    /// List all TOTP codes or filter by name.
+    /// List all TOTP codes or filter by name
+    ///
     /// Displays service name, current code and time remaining.
     /// Examples: safelocked list / safelocked list Google
     List {
@@ -59,7 +67,8 @@ enum Commands {
         name: Option<String>,
     },
 
-    /// Rename an existing service.
+    /// Rename an existing service
+    ///
     /// Example: safelocked rename Google Gmail
     Rename {
         /// Current name of the service
@@ -68,21 +77,25 @@ enum Commands {
         new_name: String,
     },
 
-    /// Remove a service from the vault.
+    /// Remove a service from the vault
+    ///
     /// Example: safelocked remove Google
     Remove {
         /// Name of the service to remove
         name: String,
     },
 
-    /// Watch a TOTP code update in real time. Press Ctrl+C to exit.
+    /// Watch a TOTP code update in real time
+    ///
+    /// Press Ctrl+C to exit.
     /// Example: safelocked watch Google
     Watch {
         /// Name of the service to watch
         name: String,
     },
 
-    /// Export the vault to a backup file.
+    /// Export the vault to a backup file
+    ///
     /// Choose between encrypted (.slbackup) or plain JSON.
     /// Encrypted backups use the same password as your vault.
     /// Example: safelocked export ~/backup
@@ -91,13 +104,16 @@ enum Commands {
         path: PathBuf,
     },
 
-    /// Import services from a backup file (.slbackup or .json).
+    /// Import services from a backup file
+    ///
+    /// Supports .slbackup and .json formats.
     /// You will be prompted for the directory and file name.
     /// Existing services with the same name are skipped automatically.
     /// Example: safelocked import
     Import,
 
-    /// Delete the vault and stop the agent permanently.
+    /// Delete the vault and stop the agent permanently
+    ///
     /// This action is irreversible. Make sure you have a backup first.
     /// Example: safelocked purge
     Purge,
