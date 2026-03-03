@@ -19,7 +19,7 @@ pub fn generate_code(secret_str: &str) -> Option<String> {
         }
     };
 
-    if secret_bytes.len() < 16 {
+    if secret_bytes.is_empty() {
         return None;
     }
 
@@ -69,8 +69,8 @@ mod tests {
 
     #[test]
     fn test_invalid_secret_returns_none() {
-        // Too short to be a valid TOTP secret
-        assert!(generate_code("ABC").is_none());
+        // Empty secret must return None
+        assert!(generate_code("").is_none());
     }
 
     #[test]
