@@ -53,7 +53,7 @@ mod tests {
     #[test]
     fn test_encrypt_decrypt_roundtrip() {
         let key = [0u8; 32];
-        let data = b"hello safelocked";
+        let data = b"hello lockbox";
         let encrypted = encrypt(data, &key);
         let decrypted = decrypt(&encrypted, &key).expect("Decryption failed");
         assert_eq!(decrypted, data);

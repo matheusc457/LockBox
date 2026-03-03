@@ -29,7 +29,11 @@ pub fn get_socket_path() -> PathBuf {
 }
 
 pub fn is_agent_running() -> bool {
-    get_socket_path().exists()
+    if !get_socket_path().exists() {
+        return false;
+    }
+    // Also verify the agent is actually responding
+    send_command("GET_KEY").is_some()
 }
 
 /// Sends a command to the running agent and returns the response.
@@ -148,7 +152,7 @@ pub fn save_vault(vault: &Vault, key: &[u8; 32]) {
     let encrypted = crypto::encrypt(&vault.serialize(), key);
     let mut final_data = vault.salt.to_vec();
     final_data.extend(encrypted);
-    vault
-        .save_to_disk(&final_data)
-        .expect("Failed to save vault");
+    if let Err(e) = vault.save_to_disk(&final_data) {
+        eprintln!("{} Failed to save vault: {}", "Error:", e);
+    }
 }

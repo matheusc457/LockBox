@@ -46,7 +46,7 @@ mod tests {
 
     #[test]
     fn test_valid_secret_generates_code() {
-        // ONQWMZLMN5RWWZLEL52GK43UEEYTEMZU is base32 of b"safelocked_test!1234" (20 bytes)
+        // ONQWMZLMN5RWWZLEL52GK43UEEYTEMZU is base32 of b"lockbox_test!!1234" (20 bytes)
         let code = generate_code("ONQWMZLMN5RWWZLEL52GK43UEEYTEMZU");
         assert!(code.is_some());
         let code = code.unwrap();
@@ -66,11 +66,6 @@ mod tests {
     #[test]
     fn test_invalid_secret_returns_none() {
         // Empty secret must return None
-        assert!(generate_code("").is_none());
-    }
-
-    #[test]
-    fn test_empty_secret_returns_none() {
         assert!(generate_code("").is_none());
     }
 
