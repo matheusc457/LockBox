@@ -153,6 +153,6 @@ pub fn save_vault(vault: &Vault, key: &[u8; 32]) {
     let mut final_data = vault.salt.to_vec();
     final_data.extend(encrypted);
     if let Err(e) = vault.save_to_disk(&final_data) {
-        eprintln!("{} Failed to save vault: {}", "Error:", e);
+        eprintln!("Error: Failed to save vault: {}", e);
     }
 }
