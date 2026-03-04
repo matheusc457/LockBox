@@ -422,10 +422,16 @@ fn main() {
             };
 
             if all {
-                println!("Watching all services (Ctrl+C to exit)...");
+                if name.is_some() {
+                    println!(
+                        "{} Use either a service name or --all, not both.",
+                        "Error:".red().bold()
+                    );
+                    return;
+                }
                 loop {
                     if !agent::is_agent_running() {
-                        println!("\n{}", "Vault locked. Exiting watch.".red().bold());
+                        println!("{}", "Vault locked. Exiting watch.".red().bold());
                         break;
                     }
                     let vault = match agent::load_vault(&key) {
@@ -442,21 +448,30 @@ fn main() {
                     } else {
                         secs.to_string().green()
                     };
-                    // Move cursor up to overwrite previous output
-                    if vault.items.len() > 1 {
-                        print!("\x1B[{}A", vault.items.len());
-                    }
+                    // Clear screen and move cursor to top
+                    print!("\x1B[2J\x1B[H");
+                    println!(
+                        "{:<20} {:<10} {:<10}",
+                        "SERVICE".bold(),
+                        "CODE".bold(),
+                        "EXPIRES".bold()
+                    );
+                    println!("{}", "-".repeat(45).blue());
                     for item in &vault.items {
                         let raw_code =
                             totp::generate_code(&item.secret).unwrap_or_else(|| "ERR".to_string());
                         let code = format_code(&raw_code);
                         println!(
-                            "\r{:<20} {:<10} {}s\x1B[K",
+                            "{:<20} {:<10} {}s",
                             item.name.cyan(),
                             code.white().bold(),
                             time_color
                         );
                     }
+                    println!(
+                        "
+Press Ctrl+C to exit."
+                    );
                     io::stdout().flush().unwrap();
                     thread::sleep(Duration::from_millis(500));
                 }
